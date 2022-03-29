@@ -1,1 +1,1 @@
-# GEO-DATA-analysis
+# GEO DATA analysis
