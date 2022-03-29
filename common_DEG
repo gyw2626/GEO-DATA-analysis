@@ -1,0 +1,61 @@
+#### 다른 데이터 load
+#### COPD
+COPD<-read.csv("data/COPD_DEG.csv")
+COPD$gs <- COPD$gene
+
+#### LOAD
+LOAD<-read.csv("data/LOAD_res.csv")
+LOAD$gs <- LOAD$ID
+
+#### SLE
+SLEr<- final
+SLEr$gs <- SLEr$SYMBOL
+
+#### IBD
+IBD<-read.table("IBD_result.txt",sep=",", header=T, row.names = 1)
+IBD$gs <- IBD$ID
+
+#### 기준값 조정
+lthred <- 0.5; pthred <- 0.05
+
+####
+C_up <- COPD[which(COPD$logFC>lthred & COPD$P.Value<pthred),]  #199
+C_dn <- COPD[which(COPD$logFC<(-lthred) & COPD$P.Value<pthred),]  #90
+
+####
+L_up <- LOAD[which(LOAD$logFC>lthred & LOAD$P.Value<pthred),]  #126
+L_dn <- LOAD[which(LOAD$logFC<(-lthred) & LOAD$P.Value<pthred),]  #158
+
+####
+S_up <- SLEr[which(SLEr$logFC>lthred& SLEr$P.Value<pthred),]  #635
+S_dn <- SLEr[which(SLEr$logFC<(-lthred) & SLEr$P.Value<pthred),]  #486
+
+####
+I_up <- IBD[which(IBD$logFC>lthred & IBD$P.Value<pthred),]  #1111
+I_dn <- IBD[which(IBD$logFC<(-lthred) & IBD$P.Value<pthred),]  #1014
+
+#### 공통 up,down gene
+commonup <- Reduce(intersect, list(I_up$gs, S_up$gs, C_up$gs))
+commondn <- Reduce(intersect, list(I_dn$gs, S_dn$gs, C_dn$gs))
+
+#### 개수 확인
+length(Reduce(setdiff, list(I_up$gs, S_up$gs, C_up$gs)))
+length(Reduce(intersect, list(S_up$gs, C_up$gs)))
+
+####
+matrix(commonup,ncol=1)
+matrix(commondn,ncol=1)
+
+#### 경로설정
+setwd("/home/kyk337/R/gse/data")
+getwd()
+
+#### 2개 데이터셋 포함
+Reduce(intersect, list(C_up$ID,I_up$ID))
+
+#### 3개 데이터셋 포함
+Reduce(intersect, list(I_up$gs, S_up$gs, L_up$gs))
+Reduce(intersect, list(I_dn$gs, S_dn$gs, L_dn$gs))
+
+#### 4개 데이터셋 모두 포함
+Reduce(intersect, list(C_up$gene, L_up$ID, S_up$SYMBOL, I_up$ID))
