@@ -1,0 +1,119 @@
+#### DATA load
+library(limma)
+library(Glimma)
+library(edgeR)
+library(Mus.musculus)
+
+#### DATA 다운로드
+GSE124180 <- read.csv(file = "GSE124180.tsv",
+                      header = T,
+                      sep = "\t",
+                      #na.strings = c("NA",""),
+                      stringsAsFactors = F)
+
+#### 필요한 행만 추출
+q <- which(colnames(GSE124180) %in% c("ENSEMBL_GENEID","S1_PB","S2_PB","S3_PB","S4_PB","S5_PB","S6_PB","S7_PB","S8_PB","S9_PB","S10_PB","S11_PB","S12_PB","S13_PB","S14_PB","S15_PB","S16_PB","S17_PB","S18_PB","S19_PB","S20_PB","S21_PB"))
+GSE124180 <- GSE124180[,q]
+head(GSE124180)
+
+#### table 결과 중복 x 진행 안함
+table(GSE124180$ENSEMBL_GENEID==T)
+dup_name <-  names(table(GSE124180$ENSEMBL_GENEID)[table(GSE124180$ENSEMBL_GENEID)!=1])
+
+#### proccessing duplicate genes 
+dup_GSE124180 <- GSE124180[GSE124180$ENSEMBL_GENEID %in% dup_name,]
+uniq_GSE124180 <- GSE124180[!(GSE124180$ENSEMBL_GENEID %in% dup_name),-1]
+rownames(uniq_GSE124180) <- GSE124180$ENSEMBL_GENEID[!(GSE124180$ENSEMBL_GENEID %in% dup_name)]
+x <- apply(dup_GSE124180[,-1], 2, function(x) tapply(x, dup_GSE124180$ENSEMBL_GENEID, function(x) round(mean(x))))
+GSE124180 <- rbind(uniq_GSE124180, x)
+
+#### DATAframe 지정      
+ensem <- GSE124180$ENSEMBL_GENEID[-1]   ##ensembl열을 ensem 변수로 지정 
+
+####
+str(GSE124180)
+
+#### 앙상블열과 필요없는 1행 삭제(있을 경우만 상황에 따라 값 변화)
+GSE124180 <- GSE124180[-1,-1]                 
+
+#### chr 값을 numeric으로 전환 - deglist에는 numeric이 필요
+GSE124180 <- apply(GSE124180,2,as.numeric)       
+
+#### 다시 첫 열을 아까 지정해둔 변수 ensem을 이용해 앙상블열 지정
+rownames(GSE124180) <- ensem                       
+
+#### con,case 구분
+group <- as.factor(c("COPD_case","CON","CON","CON","COPD_case","CON","COPD_case","COPD_case","CON","CON","COPD_case","CON","CON","CON","CON","COPD_case","CON","CON","CON","CON","CON"))
+
+#### DEGlist
+GSE124180 <- DGEList(counts = GSE124180, group = factor(group))            #### counts와 samples 두가지 유형의 데이터형식으로 분리
+#GSE124180$counts <- rownames(GSE124180)
+
+#### remove zero count
+table(rowSums(GSE124180$counts==0)>= 16)                                   #### 환자수*0.8인 0카운트 숫자세기 true,false로 출력
+
+#### 위 조건으로 카운팅된 값들의 위치를 zero 변수로 저장
+zero <- which(rowSums(GSE124180$counts==0)>= 16)                   
+GSE124180$counts <- GSE124180$counts[-zero,]                               #### zero 변수를 삭제하고 나머지 값들만 저장
+
+####
+str(GSE124180)
+
+#### Normalization
+library(edgeR)
+dim(GSE124180)
+
+#### filterByExpr 사용
+keep.exprs <- filterByExpr(GSE124180, group=group)                        
+GSE124180$counts <- GSE124180$counts[keep.exprs,]
+
+##### nomalization - calcNorm 사용
+GSE124180 <- calcNormFactors(GSE124180, method = "TMM")                 
+#IBD$samples$norm.factors
+
+####
+group <- ordered(group, levels=c("CON","COPD_case"))
+
+#### 데이터 메트릭스 제작
+design <- model.matrix(~0+group)
+colnames(design) <- c("Control","COPD")
+contr.matrix <- makeContrasts(
+  COPDvsCtrl = COPD-Control, 
+  levels = design)
+contr.matrix
+
+#### voom 사용
+par(mfrow=c(1,2))
+v <- voom(GSE124180, design, plot=TRUE)
+v
+
+#### plot들을 활용한 확인
+vfit <- lmFit(v, design)
+vfit <- contrasts.fit(vfit, contrasts=contr.matrix)
+efit <- eBayes(vfit)
+plotSA(efit, main="Final model: Mean-variance trend")
+
+summary(decideTests(efit, adjust.method = "BH", p.value = 0.05,
+                    lfc = 1))
+
+plotMD(efit, column=1)
+
+####
+res <- topTable(efit, number=Inf, adjust.method = 'BH')
+res$col <- 'grey'
+res$col[which(res$logFC>0.5 & res$P.Val<0.05)]  <- '#cb181d'
+res$col[which(res$logFC<(-0.5) & res$P.Val<0.05)]  <- '#0570b0'
+
+ggplot(data=res, aes(x=logFC, y=-log10(P.Value))) +
+  geom_point(color=res$col) + theme_classic()
+
+#### 앙상블 심볼로 변환
+eg7 = bitr(rownames(res), fromType="ENSEMBL", toType="SYMBOL", OrgDb= "org.Hs.eg.db") # 앙상블 아이디를 심볼로 변환
+colnames(eg7) <- c("ENSEMBL", "gene") #열이름 변경 *발현값데이터프레임에 있는 열이름이랑 매칭 
+res$ENSEMBL <- rownames(res)
+head(eg7)
+head(result)
+result <- merge(res,eg7,by="ENSEMBL") #ENSEMBL_GENEID 열 기준으로 통합 
+
+#### .csv 저장
+write.csv(result, file='/home/gyw2626/result.csv')
