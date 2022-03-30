@@ -1,0 +1,83 @@
+#### LDA 
+library(MASS)
+library(ROC)
+library(dplyr)
+library(caret)
+
+####
+data4 <- select(data3,2,3,6,5,1,4)
+data4 <- cbind(data4,group)
+data4 <- data4[,8]
+data4 <- data.frame(data4[,1:7])
+
+####
+data5 <- upSample(subset(data4, select=-group),data4$group)
+
+set.seed(1234)
+si <- sample(1:nrow(data5), size=nrow(data5)*0.7)
+trains <- data5[si, ]  #14 7
+tests <- data5[-si, ]  #7 7
+dim(trains);dim(tests)
+
+#### j gene의 갯수:1개~6개까지
+j=6                                                      #### j 변수만 바꿔서 for문
+nm<-combn(colnames(data5)[1:6],j);head(nm)
+n<-combn(6,j);head(n)
+
+
+#### for 문
+for (i in 1:ncol(n)){ 
+  
+  dt<-data5[,c(n[,i],7)] 
+  
+  train <- trains[,c(n[,i],7)] ;str(tr)
+  test <- tests[,c(n[,i],7)];str(te)
+  
+  r3 <- lda(formula = Class ~ ., 
+           data=train)
+  
+  plda = predict(object = r3, # predictions
+                 newdata =test)
+  head(plda$posterior, 3)
+  
+  yhat1 <- plda$posterior[, 2]##ROC curve 에 넣기
+  
+  ROC(test=yhat1, stat=test$Class, plot="ROC", AUC=TRUE, main=paste(n[,i],nm[,i],collapse = '-'))
+}
+
+
+
+
+
+######################################################################################################
+#### QDA 
+#### j gene의 갯수:1개~6개까지
+j=3
+nm <- combn(colnames(data5)[1:6],j);head(nm)
+n <- combn((1:6),j);head(n)
+
+####
+for (i in 1:ncol(n)){ 
+  
+  dt <- data5[,c(n[,i],7)] 
+  
+  train <- trains[,c(n[,i],7)] ;str(tr)
+  test <- tests[,c(n[,i],7)];str(te)
+  
+  r3 <- qda(formula = Class ~ ., 
+           data=train)
+  
+  plda = predict(object = r3, # predictions
+                 newdata =test)
+  head(plda$posterior, 3)
+  
+  yhat1 <- plda$posterior[, 2]##ROC curve 에 넣기
+  
+  ROC(test=yhat1, stat=test$Class, plot="ROC", AUC=TRUE, main=paste(n[,i],nm[,i],collapse = '-'))
+}
+
+#              case control
+#test           5   	 4
+#train          10  	11
+
+
