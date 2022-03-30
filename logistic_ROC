@@ -1,0 +1,186 @@
+#########################################
+library(dplyr)
+data4 <- select(data3,2,3,6,5,1,4)
+data4 <- cbind(data4,group)
+data4 <- data4[,8]
+data4 <- data.frame(data4[,1:7])
+
+#### upSampling으로 샘플 수 맞춰주기
+library(caret)
+
+####
+data4 <- data.frame(data4[,1:7])
+set.seed(1234)
+
+#### sample(1:10, size=7)
+si <- sample(1:nrow(data5), size=nrow(data5)*0.7)
+trains <- data5[si, ]  #84 7
+tests <- data5[-si, ]  #36 7
+dim(trains)
+
+#### 2줄 뽑기
+nm <- combn(colnames(data5)[1:6],3)
+n <- combn(6,3)
+
+#### "SLC4A4"  "TTC26" "GALNT14" "COLGALT2" "TARP" "LINC00987"
+
+####
+cat(n[,1]);cat(nm[,1])
+
+####
+tr<-trains[,c(n[,1],7)]
+te<-tests[,c(n[,1],7)]
+nrow(data5[,c(n[,1])])
+nrow(tr);nrow(te)
+str(tr);str(te)
+cat(paste(c(nm[,1]),collapse = '+'))
+
+####model 생성
+m <- glm(factor(Class) ~ TTC26+GALNT14+LINC00987, data=tr, family = binomial(logit))
+  
+summary(m)
+
+####
+head(m$fitted.values)
+
+####
+yhat <- ifelse(m$fitted.values>=0.5, 1, 0)
+table(real=tr$Class, pred=yhat)
+
+####
+yhat_test <- predict(m,te)
+summary(yhat_test)
+head(yhat_test)
+
+####
+ROC(test=yhat_test, stat=te$Class, plot="ROC", AUC=T, main=paste(n[,i],nm[,i],collapse = '-'))
+
+####
+write.csv(data4, file='/home/gyw2626/data4.csv')
+
+
+
+
+
+
+########################## for문
+library(dplyr)
+data4 <- select(data3,2,3,6,5,1,4)
+data4 <- cbind(data4,group)
+data4 <- data4[,8]
+data4 <- data.frame(data4[,1:7])
+
+#### upSampling으로 샘플 수 맞춰주기
+library(caret)
+
+#### 
+set.seed(1234)
+data5 <- upSample(subset(data4, select=-group.1),data4$group.1)
+
+set.seed(1234)
+
+#### sample(1:10, size=7)
+si <- sample(1:nrow(data5), size=nrow(data5)*0.7)
+trains <- data5[si, ]  #84 7
+tests <- data5[-si, ]  #36 7
+dim(trains)
+
+#### 2줄 뽑기
+j=6
+nm <- combn(colnames(data5)[1:6],j)
+n <- combn(6,j)
+result_lg <-  matrix(NA, 1, ncol(n))
+
+#### n개 유전자 
+#### "SLC4A4"  "TTC26" "GALNT14" "COLGALT2" "TARP" "LINC00987"
+for (i in 1:ncol(n)){
+  
+  cat(n[,i]); cat(nm[,i])
+  
+  tr<-trains[,c(n[,i],7)]
+  te<-tests[,c(n[,i],7)]
+  nrow(data5[,c(n[,i])])
+  nrow(tr);nrow(te)
+  str(tr);str(te)
+  cat(paste(c(nm[,i]),collapse = '+'))
+  
+  
+  #### model 생성
+  m <- glm(factor(Class) ~ ., data=tr, family = binomial(logit))
+  
+  summary(m)
+  
+  head(m$fitted.values)
+  
+  yhat <- ifelse(m$fitted.values>=0.5, 1, 0)
+  table(real=tr$Class, pred=yhat)
+  
+  yhat_test <- predict(m,te)
+  summary(yhat_test)
+  head(yhat_test)
+  
+  assign(paste0('R2_',i),ROC(test=yhat_test, stat=te$Class, plot="ROC", AUC=T, main=paste(n[,i],nm[,i],collapse = '-')))
+  cat(paste0('R2_',i))
+  
+  result_lg[i] <- get(paste0('R2_',i))$AUC
+}
+
+
+
+
+
+
+
+################## 다른 방법 
+disease <- 'COPD'
+train_data <- trains
+test_data <- tests
+
+#### mod <- as.formula(sprintf("Class ~ %s", genes[5]))
+mod <- as.formula("Class ~.")
+
+#### mod <- as.formula("Class ~ TTC26 + SLC4A4")
+logit <- glm(formula = "Class ~.", data = train_data, family = "binomial")
+pred_logit <- predict(logit,  test_data, type="response")
+roc_logit <- roc(test_data$Class, pred_logit, levels = c('CON', 'COPD_case'))
+plot(roc_logit, print.auc=F, print.thres=TRUE, print.thres.cex=par(10), cex.lab=1.5) #smooth(one_roc)
+text(0.5, 0.3, cex=2.5,
+     labels=sprintf(paste0( "Total" ,'\n',":%0.3f"), auc(roc_logit)), col="black") #, cex=2
+
+#### 2줄 뽑기
+j=6
+nm <- combn(colnames(data5)[1:6],j)
+n <- combn(6,j)
+
+for (i in 1:ncol(n)){
+  
+  # cat(n[,i]); cat(nm[,i])
+  
+  tr<-trains[,c(n[,i],7)]
+  te<-tests[,c(n[,i],7)]
+  #nrow(data5[,c(n[,i])])
+  #nrow(tr);nrow(te)
+  #str(tr);str(te)
+  #  cat(paste(c(nm[,i]),collapse = '+'))
+  
+  
+  #### model 생성
+  m <- glm(factor(Class) ~ ., data=tr, family = binomial(logit))
+  
+  #summary(m)
+  
+  #head(m$fitted.values)
+  
+  yhat <- ifelse(m$fitted.values>=0.5, 1, 0)
+  #  table(real=tr$Class, pred=yhat)
+  
+  yhat_test <- predict(m,te, type='response')
+  #  summary(yhat_test)
+  # head(yhat_test)
+  
+  assign(paste0('R2_',i),ROC(test=yhat_test, stat=te$Class, plot="ROC", AUC=T, main=paste(n[,i],nm[,i],collapse = '-')))
+  #  cat(paste0('R2_',i))
+  
+  result_lg[i] <- get(paste0('R2_',i))$AUC
+  print(result_lg[i])
+}
