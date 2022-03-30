@@ -1,0 +1,89 @@
+#### Decision Tree
+install.packages('tree')
+BiocManager::install("ROC")
+library(dplyr)
+library(pROC)
+library(rpart)
+library(confusion)
+library(ROC)
+library(rpart.plot)
+library(tree)
+library(party)
+library(caret)
+
+####
+data4 <- read.csv("data4.csv", header = T)
+group <- as.factor(group)
+data4 <- cbind(data4,group)
+data4 <- data4[,-1]
+data4 <- data4[,-7]
+data4 <- data.frame(data4[,1:7])
+
+#### upSampling으로 샘플 수 맞춰주기
+data5 <- upSample(subset(data4, select=-group.1),data4$group.1)
+
+set.seed(1234)
+
+#### sample(1:10, size=7)
+si <- sample(1:nrow(data5), size=nrow(data5)*0.7)
+trains <- data5[si, ]  #84 7
+tests <- data5[-si, ]  #36 7
+dim(trains)
+
+#### for문
+j=6
+
+nm <- combn(colnames(data5)[1:6],j)
+n <- combn(6,j)
+
+#### 3rd
+
+for (i in 1:ncol(n)){
+  
+  dt <- data5[,c(n[,i],7)] ; str(dt)
+  train <- trains[,c(n[,i],7)] ;str(train)
+  test <- tests[,c(n[,i],7)];str(test)
+  
+  tree <- rpart(Class ~., data = train)
+  #rpart.plot(tree)
+  
+  #printcp(tree)
+  #plotcp(tree)
+  
+  
+  p <- predict(tree, train, type = 'class')
+  confusionMatrix(p, train$Class)#, positive=’Control’)
+  p1 <- predict(tree, test, type = 'prob')
+  p1 <- p1[,2]
+  ROC(test=p1, stat=test$Class, plot="ROC", AUC=TRUE, main=paste(n[,i],collapse = '-'))
+}
+
+
+
+
+#### Random forest
+install.packages('randomForest')
+library(randomForest)
+
+set.seed(1234)
+si <- sample(1:nrow(data5), size=nrow(data5)*0.7)
+trains <- data5[si, ]  #84 7
+tests <- data5[-si, ]  #36 7
+
+#### for문
+j=6
+nm <- combn(colnames(data5)[1:6],j);head(nm)
+n <- combn(6,j);head(n)
+
+for (i in 1:ncol(n) ){ 
+  dt <- data5[,c(n[,i],7)] ; str(dt)
+  train <- trains[,c(n[,i],7)] ;str(train)
+  test <- tests[,c(n[,i],7)];str(test)
+  
+  set.seed(123)
+  forest_m <- randomForest(Class ~ ., mtry=j, data=train, ntree=500, proximity=T,importance=T)
+  forest_m
+  pred <- predict(forest_m, newdata = test,type="prob")
+  rf <- pred[,2]
+  ROC(test=rf, stat=test$Class, plot="ROC", AUC=TRUE, main=paste(n[,i],collapse = '-'))
+}
